@@ -24,9 +24,13 @@ secs = float(sys.argv[3]) if len(sys.argv) > 3 else 45.0
 S = f"chess-tui-preview-{os.getpid()}"
 TMUX = ["tmux", "-L", S]
 home = tempfile.mkdtemp()
+# the binaries in a folder named chess-tui, as av installs them, since Play
+# Bot shows the engine's path (".../chess-tui/stockfish")
+bindir = os.path.join(home, "chess-tui")
+os.mkdir(bindir)
 for name in ("chess-tui", "stockfish"):
-    shutil.copy(os.path.join(folder, name), os.path.join(home, name))
-env = dict(os.environ, HOME=home, PATH=home + ":" + os.environ["PATH"],
+    shutil.copy(os.path.join(folder, name), os.path.join(bindir, name))
+env = dict(os.environ, HOME=home, PATH=bindir + ":" + os.environ["PATH"],
            XDG_CONFIG_HOME=os.path.join(home, ".config"),
            TERM="xterm-256color", COLORTERM="truecolor", LANG="C.UTF-8",
            USER="player", LOGNAME="player")
@@ -86,7 +90,7 @@ cmd = ("env TERM=xterm-256color asciinema rec --overwrite -q --window-size 100x3
        " --title chess-tui --capture-env TERM,COLORTERM,LANG -c chess-tui " + out)
 subprocess.run(TMUX + ["new-session", "-d", "-s", S, "-x", "100", "-y", "30",
                        "-c", home, cmd], env=env, check=True)
-engine = Engine(os.path.join(home, "stockfish"))
+engine = Engine(os.path.join(bindir, "stockfish"))
 try:
     time.sleep(2.5)
     # Play Game, Play Bot; Enter through the form (it starts as White)

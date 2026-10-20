@@ -73,7 +73,7 @@ Written to be offered upstream as a pull request:
   `asciiverse/chess-tui.cast`: Play Bot as White against the shipped
   Stockfish at full strength, White's moves chosen by the same binary at
   Skill Level 3 and typed through the move box, the game read back from
-  the History panel (python-chess). The catalog's take is 11 moves with
+  the History panel (python-chess). The catalog's take is 12 moves with
   three captures, the best of six.
 
 ## Checked
