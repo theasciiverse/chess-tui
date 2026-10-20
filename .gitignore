@@ -32,3 +32,6 @@ debian/chess-tui/
 *.tar.xz
 
 .idea
+build/
+stage/
+dist/

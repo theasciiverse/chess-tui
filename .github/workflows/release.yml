@@ -1,0 +1,157 @@
+# Builds chess-tui for the Asciiverse catalog: one archive per target,
+# named chess-tui-<target>.tar.gz (Linux, macOS) or .zip (Windows), each
+# with Stockfish 11 beside chess-tui, plus SHA256SUMS and the Stockfish
+# source the binaries were built from, attached to a GitHub release
+# (hub/catalog/SCHEMA.md, release.source = "github"). Runs on our tags only
+# (*-av.*), or by hand for an existing tag. Upstream's own workflows are
+# removed in this fork (PATCHES.md).
+#
+# Linux builds run in Alpine and are fully static, so they carry the -musl
+# triple av looks for first; they are built without the sound feature
+# (rodio links ALSA). macOS and Windows keep the sound.
+
+name: release
+
+on:
+  push:
+    tags: ["*-av.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing tag to build and release"
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, runner: ubuntu-24.04, sf: x86-64 }
+          - { target: aarch64-unknown-linux-musl, runner: ubuntu-24.04-arm, sf: general-64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Build and package
+        run: |
+          docker run --rm -v "$PWD":/src -w /src rust:1-alpine sh -c '
+            apk add --no-cache build-base curl musl-dev cmake perl zip &&
+            cargo build --release --locked --no-default-features &&
+            ARCH=${{ matrix.sf }} asciiverse/stockfish.sh &&
+            asciiverse/package.sh ${{ matrix.target }} target/release/chess-tui'
+          file stage/chess-tui stage/stockfish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-apple-darwin, arch: x86_64, sf: x86-64 }
+          - { target: aarch64-apple-darwin, arch: arm64, sf: general-64 }
+    runs-on: macos-14
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Build and package
+        run: |
+          rustup target add ${{ matrix.target }}
+          cargo build --release --locked --target ${{ matrix.target }}
+          ARCH=${{ matrix.sf }} COMP=clang LDEXTRA="" CXXEXTRA="-mmacosx-version-min=11.0" \
+            MAKEARGS="arch=${{ matrix.arch }}" asciiverse/stockfish.sh
+          file target/${{ matrix.target }}/release/chess-tui stage/stockfish
+          asciiverse/package.sh ${{ matrix.target }} target/${{ matrix.target }}/release/chess-tui
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+
+  # Stockfish for Windows is cross-built with MinGW, then packed beside the
+  # MSVC build of chess-tui
+  stockfish-windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Build
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq g++-mingw-w64-x86-64
+          ARCH=x86-64 COMP=mingw CXX=x86_64-w64-mingw32-g++ EXE=.exe STRIP=x86_64-w64-mingw32-strip \
+            LDEXTRA="-static -Wl,--whole-archive -lwinpthread -Wl,--no-whole-archive" \
+            asciiverse/stockfish.sh
+          file stage/stockfish.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-windows
+          path: stage/*
+
+  windows:
+    needs: stockfish-windows
+    runs-on: windows-latest
+    env:
+      TARGET: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: stockfish-windows
+          path: stage
+
+      - name: Build and package
+        shell: bash
+        run: |
+          cargo build --release --locked --target "$TARGET"
+          EXE=.exe asciiverse/package.sh "$TARGET" "target/$TARGET/release/chess-tui.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TARGET }}
+          path: dist/*.zip
+
+  release:
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "*-*-*"
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz *.zip > SHA256SUMS && cat SHA256SUMS
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "chess-tui $TAG" \
+                 --notes "chess-tui $TAG from github.com/thomas-mauran/chess-tui, with Stockfish 11 beside it and the changes in PATCHES.md, built for the Asciiverse catalog. stockfish-11-source.tar.gz is the Stockfish source the binaries were built from (GPL-3.0)."
+          gh release upload "$TAG" dist/* -R "$GITHUB_REPOSITORY" --clobber
