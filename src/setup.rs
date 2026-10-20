@@ -130,6 +130,16 @@ fn setup_bot(bot_state: &mut BotState, config: &Config, args: &Args) {
         bot_state.chess_engine_path = Some(args.engine_path.clone());
     }
 
+    // No engine configured: use a Stockfish shipped beside chess-tui, or one on the PATH
+    if bot_state
+        .chess_engine_path
+        .as_deref()
+        .is_none_or(str::is_empty)
+        && let Some(path) = find_stockfish()
+    {
+        bot_state.chess_engine_path = Some(path.to_string_lossy().into_owned());
+    }
+
     if let Some(depth) = args.depth {
         bot_state.bot_depth = depth;
     }
@@ -146,6 +156,27 @@ fn setup_bot(bot_state: &mut BotState, config: &Config, args: &Args) {
             bot_state.bot_difficulty = Some(i);
         }
     }
+}
+
+/// Looks for a Stockfish executable next to the chess-tui executable (as in a package that ships
+/// both), then in each directory of the `PATH`.
+fn find_stockfish() -> Option<PathBuf> {
+    let name = if cfg!(windows) {
+        "stockfish.exe"
+    } else {
+        "stockfish"
+    };
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.to_path_buf()));
+    let path = std::env::var_os("PATH")
+        .map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
+        .unwrap_or_default();
+    beside
+        .into_iter()
+        .chain(path)
+        .map(|dir| dir.join(name))
+        .find(|candidate| candidate.is_file())
 }
 
 fn setup_animations(app: &mut App, config: &Config) {
