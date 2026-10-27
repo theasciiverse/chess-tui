@@ -87,3 +87,9 @@ Windows: chess-tui cross-built for x86_64-pc-windows-gnu (with sound) and
 Stockfish with MinGW; Stockfish answers UCI under Wine, and chess-tui
 starts there, but Wine's console mangles the screen, so finding the engine
 on Windows is not confirmed here. macOS: not built here.
+
+## Ours
+
+- **How to play it, at the top of README.md.** A short note on installing and
+  starting it with av, or from a release archive; the original text follows
+  unchanged.
