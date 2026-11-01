@@ -62,7 +62,7 @@ jobs:
         include:
           - { target: x86_64-apple-darwin, arch: x86_64, sf: x86-64 }
           - { target: aarch64-apple-darwin, arch: arm64, sf: general-64 }
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       MACOSX_DEPLOYMENT_TARGET: "11.0"
     steps:
