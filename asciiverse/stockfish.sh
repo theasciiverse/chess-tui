@@ -24,8 +24,9 @@ ARCH="${ARCH:-x86-64}"
 COMP="${COMP:-gcc}"
 EXE="${EXE:-}"
 STRIP="${STRIP:-strip}"
-# static where the platform allows it (not macOS)
-LDEXTRA="${LDEXTRA:--static}"
+# static where the platform allows it; macOS passes LDEXTRA="" (an empty
+# value is kept, not replaced by the default)
+LDEXTRA="${LDEXTRA--static}"
 # Alpine's fortified headers do not survive Stockfish's link-time optimisation
 CXXEXTRA="${CXXEXTRA:--U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0}"
 
@@ -35,6 +36,15 @@ tarball=dist/stockfish-11-source.tar.gz
 echo "$SHA256  $tarball" | sha256sum -c - 2>/dev/null || echo "$SHA256  $tarball" | shasum -a 256 -c -
 rm -rf build/Stockfish-sf_11
 tar -xzf "$tarball" -C build
+# general-64 is our native ARM64 build (Linux ARM64, Apple silicon), which
+# Stockfish 11's Makefile does not know: it would pass -m64, which GCC on
+# ARM64 rejects, and its config check refuses arch=arm64, which macOS needs
+# for -arch (PATCHES.md, Stockfish)
+if [ "$ARCH" = general-64 ]; then
+  sed -i.orig -e 's/ -m\$(bits)//' \
+    -e 's/test "\$(arch)" = "any" ||/& test "$(arch)" = "arm64" ||/' \
+    build/Stockfish-sf_11/src/Makefile
+fi
 # shellcheck disable=SC2086
 make -C build/Stockfish-sf_11/src -j4 build ARCH="$ARCH" COMP="$COMP" ${CXX:+CXX="$CXX"} \
   EXTRACXXFLAGS="$CXXEXTRA" EXTRALDFLAGS="$LDEXTRA" ${MAKEARGS:-}

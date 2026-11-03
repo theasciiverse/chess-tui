@@ -24,10 +24,13 @@ last version without a neural network: about 1.5 MB, where Stockfish 19
 is about 77 MB a platform, and still far stronger than any human player),
 built by `asciiverse/stockfish.sh` from the official `sf_11` tag
 (`https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_11.tar.gz`,
-sha256 `802261cc601b67bed00c0ef7d21e2125959630f0852a06db9fc9bd74f440b199`),
-unchanged: static `x86-64` for x86-64 Linux, `general-64` for ARM64 Linux
-and Apple silicon (Stockfish 11 has no ARM64 or Apple silicon target of
-its own), MinGW for Windows. Each archive has Stockfish's licence
+sha256 `802261cc601b67bed00c0ef7d21e2125959630f0852a06db9fc9bd74f440b199`):
+static `x86-64` for x86-64 Linux, `general-64` for ARM64 Linux and Apple
+silicon (Stockfish 11 has no ARM64 or Apple silicon target of its own),
+MinGW for Windows. The source is unchanged except, for `general-64`, two
+edits the script makes to its Makefile: no `-m64` (GCC on ARM64 rejects
+it), and `arm64` allowed as `arch`, which the macOS build sets for clang's
+`-arch`. Each archive has Stockfish's licence
 (`STOCKFISH-COPYING.txt`) and authors (`STOCKFISH-AUTHORS`), and each
 release has the source tarball itself, `stockfish-11-source.tar.gz`.
 
